@@ -6,8 +6,10 @@ namespace BingoCat;
 public class Settings
 {
     public int XOffset { get; set; } = 3000;
-    public int YOffset { get; set; } = -15;
+    public int YOffset { get; set; } = -120;
     public string TriggerMode { get; set; } = "sound"; // or "sound" or input
+    public string ImageSet { get; set; } = "default"; // Name of the folder containing the cat images
+    public float ScaleFactor { get; set; } = .5f;    // Scale the images up or down
 
     public static Settings Load()
     {

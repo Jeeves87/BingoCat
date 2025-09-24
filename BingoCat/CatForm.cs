@@ -2,8 +2,8 @@ using System;
 using System.Windows.Forms;
 using System.IO;
 using Gma.System.MouseKeyHook;
-using NAudio.CoreAudioApi;
 using NAudio.Wave;
+using System.Drawing;
 
 namespace BingoCat;
 
@@ -15,29 +15,38 @@ public class CatForm : Form
     private IKeyboardMouseEvents? globalHook;
     private readonly Random random = new();
     private WasapiLoopbackCapture? soundCapture;
-    private float soundThreshold = 0.01f; // Adjust as needed
+    private float soundThreshold = 0.01f;
     private bool soundTriggered = false;
+    private readonly Settings settings;
 
     public CatForm()
     {
-        // Load settings
-        var settings = Settings.Load();
+        settings = Settings.Load();
+
+        // Load images first to determine form size
+        catImages = LoadCatImages();
+        
+        // Use the size of the first image for the form
+        var baseSize = new Size(
+            (int)(catImages[0].Width * settings.ScaleFactor),
+            (int)(catImages[0].Height * settings.ScaleFactor)
+        );
 
         // Form settings
         this.FormBorderStyle = FormBorderStyle.None;
         this.ShowInTaskbar = false;
         this.TopMost = true;
         this.TransparencyKey = BackColor;
-        this.Size = new Size(64, 64);  // Adjust based on your image size
+        this.Size = baseSize;
 
-        // Position the window above the taskbar, using settings
+        // Position the window above the taskbar
         this.StartPosition = FormStartPosition.Manual;
         this.Location = new Point(
             Screen.PrimaryScreen.WorkingArea.Right - this.Width - settings.XOffset,
             Screen.PrimaryScreen.WorkingArea.Bottom - this.Height - settings.YOffset
         );
 
-        // Initialize PictureBox
+        // Initialize PictureBox with scaling
         catPictureBox = new PictureBox
         {
             Dock = DockStyle.Fill,
@@ -45,27 +54,11 @@ public class CatForm : Form
             BackColor = Color.Transparent
         };
         this.Controls.Add(catPictureBox);
-
-        // Load cat images from Resources/Images
-        string projectDir = AppDomain.CurrentDomain.BaseDirectory;
-        if (projectDir.Contains("bin"))
-        {
-            projectDir = Path.GetFullPath(Path.Combine(projectDir, "../../.."));
-        }
-        string imagesDir = Path.Combine(projectDir, "Resources", "Images");
-        catImages = new Image[]
-        {
-            Image.FromFile(Path.Combine(imagesDir, "catBothDown.png")),
-            Image.FromFile(Path.Combine(imagesDir, "catRightHand.png")),
-            Image.FromFile(Path.Combine(imagesDir, "catLeftHand.png"))
-        };
         catPictureBox.Image = catImages[0];
 
         // Set up animation timer
         animationTimer.Interval = 100;
         animationTimer.Tick += AnimationTimer_Tick;
-
-        // Removed context menu for closing (no right-click exit)
 
         // Allow dragging the window
         this.MouseDown += (s, e) => 
@@ -93,11 +86,41 @@ public class CatForm : Form
         }
     }
 
+    private Image[] LoadCatImages()
+    {
+        string projectDir = AppDomain.CurrentDomain.BaseDirectory;
+        if (projectDir.Contains("bin"))
+        {
+            projectDir = Path.GetFullPath(Path.Combine(projectDir, "../../.."));
+        }
+
+        // Construct path to the specific image set folder
+        string imagesDir = Path.Combine(projectDir, "Resources", "Images", settings.ImageSet);
+        
+        // Ensure the directory exists
+        if (!Directory.Exists(imagesDir))
+        {
+            // Fall back to default if specified set doesn't exist
+            imagesDir = Path.Combine(projectDir, "Resources", "Images", "default");
+            if (!Directory.Exists(imagesDir))
+            {
+                throw new DirectoryNotFoundException($"Could not find image directory: {imagesDir}");
+            }
+        }
+
+        // Load the three required images
+        return new Image[]
+        {
+            Image.FromFile(Path.Combine(imagesDir, "catBothDown.png")),
+            Image.FromFile(Path.Combine(imagesDir, "catRightHand.png")),
+            Image.FromFile(Path.Combine(imagesDir, "catLeftHand.png"))
+        };
+    }
+
     private void SoundCapture_DataAvailable(object? sender, WaveInEventArgs e)
     {
-        // Calculate RMS (root mean square) volume
         float sum = 0;
-        int bytesPerSample = 4; // 32-bit float
+        int bytesPerSample = 4;
         int samples = e.BytesRecorded / bytesPerSample;
         for (int i = 0; i < e.BytesRecorded; i += bytesPerSample)
         {
@@ -131,7 +154,6 @@ public class CatForm : Form
 
     private void AnimationTimer_Tick(object? sender, EventArgs e)
     {
-        // Reset to default image
         catPictureBox.Image = catImages[0];
         animationTimer.Stop();
     }
